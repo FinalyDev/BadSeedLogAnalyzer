@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warrior Scorecard</title>
+<link rel="icon" href="https://wow.zamimg.com/images/wow/icons/large/classicon_warrior.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script>const whTooltips = { colorLinks: false, iconizeLinks: false, renameLinks: false };</script>
+<script src="https://wow.zamimg.com/js/tooltips.js"></script>
+<style>
+  :root {
+    --bg: #110e0b; --panel: #1c1712; --panel2: #241d17; --line: #3a3027; --text: #ece3d6; --muted: #a8998a;
+    --warrior: #c79c6e; --gold: #e6b450; --bad: #e0605a;
+    --dps: #c79c6e; --sunder: #7aa6d6; --demo: #b48ad6; --disarm: #d6a96a;
+    /* Warcraft Logs parse colors */
+    --t-legend: #e5cc80; --t-orange: #ff8000; --t-purple: #a335ee; --t-blue: #0070dd; --t-green: #1eff00; --t-gray: #9d9d9d;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: clip; }
+  body { margin: 0; background: radial-gradient(ellipse at top, #2a1f15 0%, var(--bg) 60%) fixed; color: var(--text);
+         font: 15px/1.5 Inter, system-ui, sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 24px 16px 64px; }
+  a { color: inherit; }
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .brand img { width: 44px; height: 44px; border-radius: 8px; border: 2px solid var(--warrior); box-shadow: 0 0 18px rgba(199,156,110,.35); }
+  h1 { font-family: Cinzel, serif; color: var(--warrior); margin: 0; font-size: 28px; letter-spacing: .02em; }
+  .sub { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 200px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; text-transform: uppercase; letter-spacing: .04em; }
+  input, select { width: 100%; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+  input:focus, select:focus { outline: 2px solid var(--warrior); outline-offset: -1px; }
+  button { padding: 10px 16px; background: linear-gradient(#d8ad7c, #a97f53); color: #1a120a; border: 0; border-radius: 6px;
+           font: 600 15px Inter, sans-serif; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--warrior); border: 1px solid var(--warrior); }
+  button:disabled { opacity: .5; cursor: default; }
+  details summary { cursor: pointer; color: var(--warrior); font-weight: 600; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .status { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 1.5em; }
+  .status.err { color: var(--bad); }
+  .auth { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+
+  /* icons */
+  .ico { width: 28px; height: 28px; border-radius: 5px; border: 1px solid #000; box-shadow: 0 0 0 1px var(--line); vertical-align: middle; flex: none; }
+  .ico.sm { width: 22px; height: 22px; }
+  a.spell { display: inline-flex; line-height: 0; border-radius: 6px; }
+  a.spell:hover .ico { box-shadow: 0 0 0 1px var(--gold), 0 0 10px rgba(230,180,80,.5); }
+
+  /* tooltips (hover on desktop, tap on mobile) */
+  .tip { position: relative; cursor: help; border-bottom: 1px dotted var(--muted); }
+  .tip.bare { border: 0; }
+  .tip::after {
+    content: attr(data-tip); position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 20;
+    width: max-content; max-width: min(280px, 80vw); padding: 8px 10px; white-space: normal;
+    background: #070b1c; border: 1px solid #5c6a96; border-radius: 4px; color: #fff;
+    font: 400 12.5px/1.45 Inter, sans-serif; text-transform: none; letter-spacing: 0;
+    box-shadow: 0 6px 20px rgba(0,0,0,.6); pointer-events: none; display: none;
+  }
+  .tip:hover::after, .tip:focus::after { display: block; }
+  .score.tip::after, .bar.tip::after, .w .tip::after { left: auto; right: 0; }
+  .tip:focus { outline: none; }
+
+  /* legend */
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+  .chip { display: flex; align-items: center; gap: 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+  .chip b { display: block; font-size: 14px; }
+  .chip small { color: var(--muted); font-size: 12px; }
+  .chip .w { margin-left: auto; font: 600 18px Cinzel, serif; }
+  .tiers { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .tiers span::before { content: '●'; margin-right: 4px; color: var(--c); }
+
+  /* cards */
+  .card { background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line); border-radius: 12px;
+          padding: 14px 16px; margin-bottom: 10px; border-left: 4px solid var(--tier, var(--line)); }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .rank { font: 700 16px Cinzel, serif; color: var(--muted); width: 26px; text-align: center; }
+  .name { font-family: Cinzel, serif; font-size: 18px; font-weight: 700; color: var(--warrior); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .score { font: 700 30px Cinzel, serif; color: var(--tier); text-shadow: 0 0 14px color-mix(in srgb, var(--tier) 40%, transparent); }
+  .comp { display: grid; grid-template-columns: 28px 76px 1fr 34px; gap: 4px 10px; align-items: center; margin-top: 10px; font-size: 13px; }
+  .comp .lbl { font-weight: 500; }
+  .bar { height: 10px; background: #0b0907; border: 1px solid #000; border-radius: 5px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; border-radius: 4px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .detail { grid-column: 3 / 5; color: var(--muted); font-size: 12px; margin-top: -4px; }
+  .na { color: var(--muted); font-style: italic; }
+  .dim .ico { filter: grayscale(1) brightness(.6); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  th .ico { margin: 0 auto; display: block; }
+  .scroll { overflow-x: auto; }
+  h2 { font-family: Cinzel, serif; color: var(--warrior); font-size: 20px; margin: 24px 0 10px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">
+    <img src="https://wow.zamimg.com/images/wow/icons/large/classicon_warrior.jpg" alt="" onerror="this.style.display='none'">
+    <h1>Warrior Scorecard</h1>
+  </div>
+  <p class="sub">Ranks DPS warriors by damage <i>and</i> the debuffs the raid depends on. Hover or tap anything for details.</p>
+
+  <div class="panel">
+    <div id="legend" class="legend"></div>
+    <div class="tiers">
+      <span style="--c:var(--t-legend)">100</span><span style="--c:var(--t-orange)">95+</span><span style="--c:var(--t-purple)">75+</span>
+      <span style="--c:var(--t-blue)">50+</span><span style="--c:var(--t-green)">25+</span><span style="--c:var(--t-gray)">&lt;25</span>
+    </div>
+  </div>
+
+  <div class="panel auth">
+    <div id="authText">Not signed in to Warcraft Logs.</div>
+    <div class="row" style="flex:0 0 auto">
+      <button id="loginBtn">Sign in with Warcraft Logs</button>
+      <button id="logoutBtn" class="ghost" hidden>Sign out</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <label for="report">Report URL or code</label>
+    <div class="row">
+      <input id="report" placeholder="https://classic.warcraftlogs.com/reports/AbCd1234…">
+      <button id="runBtn" style="flex:0 0 auto">Analyze</button>
+    </div>
+    <div id="status" class="status"></div>
+
+    <details style="margin-top:12px">
+      <summary>Settings & roles</summary>
+      <div class="row">
+        <div><label for="clientId">WCL client ID</label><input id="clientId" placeholder="from warcraftlogs.com/api/clients">
+          <div class="hint">Create a <b>public (PKCE)</b> client with this page's URL as the redirect.</div></div>
+        <div><label for="host">Log site</label>
+          <select id="host">
+            <option value="https://classic.warcraftlogs.com">classic.warcraftlogs.com</option>
+            <option value="https://fresh.warcraftlogs.com">fresh.warcraftlogs.com</option>
+            <option value="https://sod.warcraftlogs.com">sod.warcraftlogs.com</option>
+            <option value="https://vanilla.warcraftlogs.com">vanilla.warcraftlogs.com</option>
+          </select></div>
+      </div>
+      <label for="tanks">Tanks (excluded from ranking)</label><input id="tanks" placeholder="Name, Name">
+      <label for="sunder">On sunder duty (blank = every DPS warrior)</label><input id="sunder" placeholder="Name, Name">
+      <label for="demo">On Demo Shout</label><input id="demo" placeholder="Name">
+      <div class="row">
+        <div><label for="disarmEnc">Disarm-scored encounter IDs</label><input id="disarmEnc" placeholder="blank = disarm not scored"></div>
+        <div><label for="disarmTarget">Disarms for full marks</label><input id="disarmTarget" type="number" value="3" min="1"></div>
+        <div><label for="topN">Show top</label><input id="topN" type="number" value="6" min="1"></div>
+      </div>
+      <div class="hint">Saved in this browser only.</div>
+    </details>
+  </div>
+
+  <div id="results"></div>
+</main>
+
+<script>
+/* ───────── config ───────── */
+const CFG = {
+  WEIGHTS: { dps: 0.60, sunder: 0.25, demo: 0.10, disarm: 0.05 },
+  SPELLS: { sunder: 11597, demo: 11556, disarm: 676 },
+  SUNDER_REFRESH_S: 25, EARLY_WINDOW_S: 20, EARLY_BONUS: 1.5,
+  DEMO_FULL_UPTIME: 0.90,
+};
+const WOWHEAD = 'https://www.wowhead.com/classic/spell=';
+const ICON = n => `https://wow.zamimg.com/images/wow/icons/large/${n}.jpg`;
+const ICON_FALLBACK = ICON('inv_misc_questionmark');
+
+const COMPONENTS = [
+  { key: 'dps', label: 'DPS', color: 'var(--dps)', icon: 'ability_warrior_savageblow', spell: null,
+    tip: 'Your DPS ÷ the top warrior\'s DPS on each boss kill, averaged by fight length. Top DPS = 100.' },
+  { key: 'sunder', label: 'Sunder', color: 'var(--sunder)', icon: 'ability_warrior_sunder', spell: CFG.SPELLS.sunder,
+    tip: 'Useful sunders vs. your share of what the raid needed (5 stacks + a refresh every 25s). Only effective sunders count: ones that add a stack, or refresh a 5-stack that was about to fall off. Sunders in the first 20s count 1.5×.' },
+  { key: 'demo', label: 'Demo', color: 'var(--demo)', icon: 'ability_warrior_warcry', spell: CFG.SPELLS.demo,
+    tip: 'Demoralizing Shout uptime on the boss. 90%+ uptime = 100. Only scored for the warrior assigned to it.' },
+  { key: 'disarm', label: 'Disarm', color: 'var(--disarm)', icon: 'ability_warrior_disarm', spell: CFG.SPELLS.disarm,
+    tip: 'Successful disarms on encounters you marked as disarmable. Not scored anywhere else.' },
+];
+
+const AUTH_URL = 'https://www.warcraftlogs.com/oauth/authorize';
+const TOKEN_URL = 'https://www.warcraftlogs.com/oauth/token';
+const FIELDS = ['clientId', 'host', 'tanks', 'sunder', 'demo', 'disarmEnc', 'disarmTarget', 'topN', 'report'];
+const $ = id => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem('ws_' + k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem('ws_' + k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem('ws_' + k); } catch (e) {} },
+};
+const redirectUri = () => location.origin + location.pathname;
+const names = s => s.split(',').map(x => x.trim()).filter(Boolean);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ───────── icons & tooltips ───────── */
+function iconImg(name, cls) {
+  return `<img class="ico ${cls || ''}" src="${ICON(name)}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${ICON_FALLBACK}'">`;
+}
+// Spell icons link to Wowhead so its tooltip script shows the real in-game tooltip
+function spellIcon(c, cls) {
+  const img = iconImg(c.icon, cls);
+  return c.spell
+    ? `<a class="spell" href="${WOWHEAD}${c.spell}" target="_blank" rel="noopener" data-wh-icon-size="medium">${img}</a>`
+    : `<span class="tip bare" tabindex="0" data-tip="${esc(c.tip)}">${img}</span>`;
+}
+function refreshWowhead() {
+  try { if (window.$WowheadPower) window.$WowheadPower.refreshLinks(); } catch (e) {}
+}
+function tierColor(v) {
+  if (v >= 99.5) return 'var(--t-legend)';
+  if (v >= 95) return 'var(--t-orange)';
+  if (v >= 75) return 'var(--t-purple)';
+  if (v >= 50) return 'var(--t-blue)';
+  if (v >= 25) return 'var(--t-green)';
+  return 'var(--t-gray)';
+}
+
+$('legend').innerHTML = COMPONENTS.map(c => `
+  <div class="chip">
+    ${spellIcon(c)}
+    <div><b class="tip" tabindex="0" data-tip="${esc(c.tip)}">${c.label}</b><small>${c.spell ? 'Hover icon for spell' : 'Damage done'}</small></div>
+    <span class="w" style="color:${c.color}">${Math.round(CFG.WEIGHTS[c.key] * 100)}%</span>
+  </div>`).join('');
+
+/* ───────── settings ───────── */
+FIELDS.forEach(f => {
+  const v = store.get(f); if (v !== null) $(f).value = v;
+  $(f).addEventListener('change', () => store.set(f, $(f).value));
+});
+
+/* ───────── auth (PKCE, no secret) ───────── */
+function b64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function login() {
+  const clientId = $('clientId').value.trim();
+  if (!clientId) { openSettings(); return setStatus('Add your WCL client ID in Settings first.', true); }
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  sessionStorage.setItem('ws_verifier', verifier);
+  sessionStorage.setItem('ws_state', state);
+  location.href = AUTH_URL + '?' + new URLSearchParams({
+    client_id: clientId, response_type: 'code', redirect_uri: redirectUri(),
+    code_challenge: challenge, code_challenge_method: 'S256', state,
+  });
+}
+async function finishLogin() {
+  const p = new URLSearchParams(location.search);
+  if (!p.get('code')) return;
+  history.replaceState(null, '', redirectUri());
+  if (p.get('state') !== sessionStorage.getItem('ws_state')) return setStatus('Sign-in failed (state mismatch). Try again.', true);
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code', client_id: $('clientId').value.trim(),
+      code: p.get('code'), redirect_uri: redirectUri(),
+      code_verifier: sessionStorage.getItem('ws_verifier') || '',
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!body.access_token) return setStatus('Sign-in failed: ' + (body.error_description || body.error || res.status), true);
+  store.set('token', body.access_token);
+  store.set('tokenExp', String(Date.now() + (body.expires_in || 3600) * 1000));
+}
+function token() {
+  const t = store.get('token'), exp = Number(store.get('tokenExp') || 0);
+  return t && Date.now() < exp ? t : null;
+}
+function refreshAuthUi() {
+  const ok = !!token();
+  $('authText').textContent = ok ? '✅ Signed in to Warcraft Logs.' : 'Not signed in to Warcraft Logs.';
+  $('loginBtn').hidden = ok; $('logoutBtn').hidden = !ok;
+}
+$('loginBtn').onclick = login;
+$('logoutBtn').onclick = () => { store.del('token'); store.del('tokenExp'); refreshAuthUi(); };
+function openSettings() { document.querySelector('details').open = true; }
+
+/* ───────── API ───────── */
+async function gql(query, variables) {
+  const res = await fetch($('host').value + '/api/v2/user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token() },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (res.status === 401) { store.del('token'); refreshAuthUi(); throw new Error('Session expired — sign in again.'); }
+  const body = await res.json();
+  if (body.errors) throw new Error(body.errors.map(e => e.message).join('; '));
+  return body.data.reportData.report;
+}
+const fetchReport = code => gql(`query($code: String!) { reportData { report(code: $code) {
+  title
+  fights(killType: Kills) { id encounterID name startTime endTime }
+  masterData { actors(type: "Player") { id name subType } } } } }`, { code });
+
+async function fetchDamage(code, f) {
+  const r = await gql(`query($code: String!, $fid: [Int]!, $s: Float!, $e: Float!) { reportData { report(code: $code) {
+    table(dataType: DamageDone, fightIDs: $fid, startTime: $s, endTime: $e) } } }`,
+    { code, fid: [f.id], s: f.startTime, e: f.endTime });
+  const t = r.table && (r.table.data || r.table);
+  return (t && t.entries) || [];
+}
+async function fetchEvents(code, f, abilityID) {
+  const out = []; let start = f.startTime;
+  while (start != null) {
+    const r = await gql(`query($code: String!, $fid: [Int]!, $s: Float!, $e: Float!, $ab: Float) {
+      reportData { report(code: $code) {
+        events(fightIDs: $fid, startTime: $s, endTime: $e, abilityID: $ab, dataType: Debuffs,
+               hostilityType: Enemies, limit: 10000) { data nextPageTimestamp } } } }`,
+      { code, fid: [f.id], s: start, e: f.endTime, ab: abilityID });
+    out.push(...(r.events.data || []));
+    start = r.events.nextPageTimestamp;
+  }
+  return out;
+}
+
+/* ───────── scoring ───────── */
+function analyzeSunders(events, fight, cfg) {
+  const state = {}, useful = {}, usefulRaw = {}, wasted = {};
+  const add = (m, k, v) => { m[k] = (m[k] || 0) + v; };
+  events.slice().sort((a, b) => a.timestamp - b.timestamp).forEach(ev => {
+    const key = ev.targetID + ':' + (ev.targetInstance || 0);
+    const s = state[key] || (state[key] = { stacks: 0, last: 0 });
+    const credit = (ev.timestamp - fight.startTime) < cfg.EARLY_WINDOW_S * 1000 ? cfg.EARLY_BONUS : 1;
+    const good = () => { add(useful, ev.sourceID, credit); add(usefulRaw, ev.sourceID, 1); };
+    if (ev.type === 'applydebuff') { s.stacks = 1; s.last = ev.timestamp; good(); }
+    else if (ev.type === 'applydebuffstack') { s.stacks = ev.stack || s.stacks + 1; s.last = ev.timestamp; good(); }
+    else if (ev.type === 'refreshdebuff') {
+      if (s.stacks < 5 || ev.timestamp - s.last >= cfg.SUNDER_REFRESH_S * 1000) good();
+      else add(wasted, ev.sourceID, 1);
+      s.last = ev.timestamp;
+    }
+    else if (ev.type === 'removedebuffstack') s.stacks = ev.stack || Math.max(0, s.stacks - 1);
+    else if (ev.type === 'removedebuff') delete state[key];
+  });
+  return { useful, usefulRaw, wasted };
+}
+function demoUptime(events, fight) {
+  const open = {}, covered = {};
+  events.slice().sort((a, b) => a.timestamp - b.timestamp).forEach(ev => {
+    const key = ev.targetID + ':' + (ev.targetInstance || 0);
+    if (ev.type === 'applydebuff' && open[key] == null) open[key] = ev.timestamp;
+    else if (ev.type === 'removedebuff' && open[key] != null) {
+      covered[key] = (covered[key] || 0) + ev.timestamp - open[key]; delete open[key];
+    }
+  });
+  Object.keys(open).forEach(k => { covered[k] = (covered[k] || 0) + fight.endTime - open[k]; });
+  const best = Math.max(0, ...Object.values(covered));
+  return Math.min(1, best / (fight.endTime - fight.startTime));
+}
+function countBySource(events, type) {
+  const out = {};
+  events.forEach(ev => { if (ev.type === type) out[ev.sourceID] = (out[ev.sourceID] || 0) + 1; });
+  return out;
+}
+function scoreReport(fights, warriors, cfg) {
+  const acc = {};
+  const get = n => acc[n] || (acc[n] = { name: n, dpsSum: 0, dpsDur: 0, rawDps: 0, sunder: 0, sunderDur: 0,
+    usefulSunders: 0, wasted: 0, demo: 0, demoDur: 0, demoUp: 0, disarm: 0, disarmDur: 0, disarms: 0 });
+  const idByName = {};
+  Object.keys(warriors).forEach(id => { idByName[warriors[id]] = Number(id); });
+
+  fights.forEach(fd => {
+    const f = fd.fight, durS = (f.endTime - f.startTime) / 1000;
+    if (durS <= 0) return;
+    const dmg = {};
+    fd.damage.forEach(e => { if (e.type === 'Warrior' && !cfg.TANKS.includes(e.name)) dmg[e.name] = e.total / durS; });
+    const present = Object.keys(dmg);
+    if (!present.length) return;
+    const top = Math.max(...present.map(n => dmg[n]));
+    const sun = analyzeSunders(fd.sunderEvents, f, cfg);
+    const up = demoUptime(fd.demoEvents, f);
+    const dis = fd.disarmEvents ? countBySource(fd.disarmEvents, 'applydebuff') : null;
+    const pool = cfg.SUNDER_ASSIGNED.length ? present.filter(n => cfg.SUNDER_ASSIGNED.includes(n)) : present;
+    const sunTarget = pool.length ? (5 + durS / cfg.SUNDER_REFRESH_S) / pool.length : 0;
+
+    present.forEach(n => {
+      const a = get(n), id = idByName[n];
+      a.dpsSum += dmg[n] / top * 100 * durS; a.dpsDur += durS; a.rawDps += dmg[n] * durS;
+      a.usefulSunders += sun.usefulRaw[id] || 0; a.wasted += sun.wasted[id] || 0;
+      if (pool.includes(n) && sunTarget > 0) {
+        a.sunder += Math.min(100, (sun.useful[id] || 0) / sunTarget * 100) * durS; a.sunderDur += durS;
+      }
+      if (cfg.DEMO_ASSIGNED.includes(n)) {
+        a.demo += Math.min(100, up / cfg.DEMO_FULL_UPTIME * 100) * durS; a.demoDur += durS; a.demoUp += up * durS;
+      }
+      if (dis) {
+        const k = dis[id] || 0;
+        a.disarms += k; a.disarm += Math.min(100, k / cfg.DISARM_TARGET * 100) * durS; a.disarmDur += durS;
+      }
+    });
+  });
+
+  return Object.values(acc).map(a => {
+    const comp = {
+      dps: a.dpsDur ? a.dpsSum / a.dpsDur : null,
+      sunder: a.sunderDur ? a.sunder / a.sunderDur : null,
+      demo: a.demoDur ? a.demo / a.demoDur : null,
+      disarm: a.disarmDur ? a.disarm / a.disarmDur : null,
+    };
+    let w = 0, t = 0;
+    for (const k in comp) if (comp[k] !== null) { t += comp[k] * cfg.WEIGHTS[k]; w += cfg.WEIGHTS[k]; }
+    return { name: a.name, score: w ? t / w : 0, components: comp, raw: {
+      dps: a.dpsDur ? a.rawDps / a.dpsDur : 0, usefulSunders: a.usefulSunders, wastedSunders: a.wasted,
+      demoUptime: a.demoDur ? a.demoUp / a.demoDur : null, disarms: a.disarmDur ? a.disarms : null } };
+  }).sort((x, y) => y.score - x.score);
+}
+
+/* ───────── UI ───────── */
+function setStatus(msg, err) { $('status').textContent = msg; $('status').className = 'status' + (err ? ' err' : ''); }
+function reportCode(v) { const m = v.match(/reports\/([A-Za-z0-9]+)/); return m ? m[1] : v.trim(); }
+
+function detailFor(key, r) {
+  if (key === 'dps') return `${Math.round(r.dps).toLocaleString()} dps`;
+  if (key === 'sunder') return `${r.usefulSunders} effective sunder${r.usefulSunders === 1 ? '' : 's'}`;
+  if (key === 'demo') return r.demoUptime !== null ? `${Math.round(r.demoUptime * 100)}% uptime` : '';
+  if (key === 'disarm') return r.disarms !== null ? `${r.disarms} landed` : '';
+  return '';
+}
+function compRow(c, value, detail) {
+  if (value === null) {
+    return `<div class="comp dim">${spellIcon(c, 'sm')}<span class="lbl tip" tabindex="0" data-tip="${esc(c.tip)}">${c.label}</span>
+      <span class="na">not assigned — weight moved to other scores</span><span class="num na">—</span></div>`;
+  }
+  const tip = `${c.label}: ${Math.round(value)}/100 × ${Math.round(CFG.WEIGHTS[c.key] * 100)}% weight. ${detail}. ${c.tip}`;
+  return `<div class="comp">${spellIcon(c, 'sm')}<span class="lbl tip" tabindex="0" data-tip="${esc(c.tip)}">${c.label}</span>
+    <div class="bar tip bare" tabindex="0" data-tip="${esc(tip)}"><span style="width:${value}%;background:${c.color}"></span></div>
+    <span class="num" style="color:${tierColor(value)}">${Math.round(value)}</span>
+    <span class="detail">${esc(detail)}</span></div>`;
+}
+function render(title, fights, ranked, topN) {
+  const medals = ['🥇', '🥈', '🥉'];
+  const cards = ranked.slice(0, topN).map((p, i) => {
+    const tier = tierColor(p.score);
+    const rows = COMPONENTS.map(c => compRow(c, p.components[c.key], detailFor(c.key, p.raw))).join('');
+    return `<div class="card" style="--tier:${tier}">
+      <div class="card-head">
+        <div class="who"><span class="rank">${medals[i] || i + 1}</span>${iconImg('classicon_warrior')}<span class="name">${esc(p.name)}</span></div>
+        <span class="score tip bare" tabindex="0" data-tip="Weighted total of the scores below.">${p.score.toFixed(1)}</span>
+      </div>${rows}</div>`;
+  }).join('');
+
+  const f = v => v === null ? '<span class="na">—</span>' : `<span style="color:${tierColor(v)}">${Math.round(v)}</span>`;
+  const head = COMPONENTS.map(c => `<th>${spellIcon(c, 'sm')}</th>`).join('');
+  const rows = ranked.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td>
+    <td><b style="color:${tierColor(p.score)}">${p.score.toFixed(1)}</b></td>
+    ${COMPONENTS.map(c => `<td>${f(p.components[c.key])}</td>`).join('')}</tr>`).join('');
+
+  $('results').innerHTML = `<h2>${esc(title)}</h2><p class="sub">${fights} boss kill${fights === 1 ? '' : 's'} analyzed</p>${cards}
+    <h2>All warriors</h2><div class="panel scroll"><table>
+    <tr><th>#</th><th>Name</th><th>Score</th>${head}</tr>${rows}</table></div>`;
+  refreshWowhead();
+}
+
+async function run() {
+  if (!token()) return setStatus('Sign in to Warcraft Logs first.', true);
+  const code = reportCode($('report').value);
+  if (!code) return setStatus('Paste a report URL or code.', true);
+  const cfg = Object.assign({}, CFG, {
+    TANKS: names($('tanks').value), SUNDER_ASSIGNED: names($('sunder').value), DEMO_ASSIGNED: names($('demo').value),
+    DISARM_ENCOUNTERS: names($('disarmEnc').value).map(Number), DISARM_TARGET: Number($('disarmTarget').value) || 3,
+  });
+  $('runBtn').disabled = true; $('results').innerHTML = '';
+  try {
+    setStatus('Loading report…');
+    const rep = await fetchReport(code);
+    const warriors = {};
+    rep.masterData.actors.filter(a => a.subType === 'Warrior').forEach(a => { warriors[a.id] = a.name; });
+    const fights = [];
+    for (let i = 0; i < rep.fights.length; i++) {
+      const f = rep.fights[i];
+      setStatus(`Analyzing ${f.name} (${i + 1}/${rep.fights.length})…`);
+      const [damage, sunderEvents, demoEvents, disarmEvents] = await Promise.all([
+        fetchDamage(code, f), fetchEvents(code, f, cfg.SPELLS.sunder), fetchEvents(code, f, cfg.SPELLS.demo),
+        cfg.DISARM_ENCOUNTERS.includes(f.encounterID) ? fetchEvents(code, f, cfg.SPELLS.disarm) : Promise.resolve(null),
+      ]);
+      fights.push({ fight: f, damage, sunderEvents, demoEvents, disarmEvents });
+    }
+    if (!fights.length) return setStatus('No boss kills found in this report.', true);
+    const ranked = scoreReport(fights, warriors, cfg);
+    if (!ranked.length) return setStatus('No DPS warriors found.', true);
+    render(rep.title, fights.length, ranked, Number($('topN').value) || 6);
+    setStatus('');
+  } catch (e) {
+    setStatus(e.message, true);
+  } finally {
+    $('runBtn').disabled = false;
+  }
+}
+$('runBtn').onclick = run;
+
+// Preview with sample data: add ?demo to the page URL
+if (new URLSearchParams(location.search).has('demo')) {
+  const mk = (name, s, d, su, de, w) => ({ name, score: s,
+    components: { dps: d, sunder: su, demo: de, disarm: null },
+    raw: { dps: d * 11, usefulSunders: Math.round((su || 0) / 6), wastedSunders: w, demoUptime: de !== null ? de * .009 : null, disarms: null } });
+  render('Sample raid (demo data)', 9, [
+    mk('Ironjaw', 96.4, 98, 92, null, 0), mk('Grimtusk', 92.1, 100, 74, null, 0), mk('Valebreaker', 89.4, 85, 96, 98, 0),
+    mk('Stonefist', 80.6, 90, 55, null, 0), mk('Ashcleaver', 70.3, 82, 30, null, 0), mk('Rustblade', 54.9, 64, 12, null, 0),
+  ], 6);
+}
+
+finishLogin().catch(e => setStatus(e.message, true)).finally(refreshAuthUi);
+if (!store.get('clientId')) openSettings();
+</script>
+</body>
+</html>
