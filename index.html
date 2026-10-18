@@ -143,11 +143,18 @@
             <option value="https://vanilla.warcraftlogs.com">vanilla.warcraftlogs.com</option>
           </select></div>
       </div>
+      <label for="fightSet">Fights to analyze</label>
+      <select id="fightSet">
+        <option value="killsTrash">Boss kills + trash</option>
+        <option value="all">Everything (incl. boss wipes)</option>
+        <option value="kills">Boss kills only</option>
+        <option value="trash">Trash only</option>
+      </select>
       <label for="tanks">Tanks (excluded from ranking)</label><input id="tanks" placeholder="Name, Name">
       <label for="sunder">On sunder duty (blank = every DPS warrior)</label><input id="sunder" placeholder="Name, Name">
       <label for="demo">On Demo Shout</label><input id="demo" placeholder="Name">
       <div class="row">
-        <div><label for="disarmEnc">Disarm-scored encounter IDs</label><input id="disarmEnc" placeholder="blank = disarm not scored"></div>
+        <div><label for="disarmEnc">Disarm-scored encounter IDs</label><input id="disarmEnc" placeholder="0 = trash, e.g. 0, 610"></div>
         <div><label for="disarmTarget">Disarms for full marks</label><input id="disarmTarget" type="number" value="3" min="1"></div>
         <div><label for="topN">Show top</label><input id="topN" type="number" value="6" min="1"></div>
       </div>
@@ -172,7 +179,7 @@ const ICON_FALLBACK = ICON('inv_misc_questionmark');
 
 const COMPONENTS = [
   { key: 'dps', label: 'DPS', color: 'var(--dps)', icon: 'ability_warrior_savageblow', spell: null,
-    tip: 'Your DPS ÷ the top warrior\'s DPS on each boss kill, averaged by fight length. Top DPS = 100.' },
+    tip: 'Your DPS ÷ the top warrior\'s DPS on each pull, averaged by fight length. Top DPS = 100.' },
   { key: 'sunder', label: 'Sunder', color: 'var(--sunder)', icon: 'ability_warrior_sunder', spell: CFG.SPELLS.sunder,
     tip: 'Useful sunders vs. your share of what the raid needed (5 stacks + a refresh every 25s). Only effective sunders count: ones that add a stack, or refresh a 5-stack that was about to fall off. Sunders in the first 20s count 1.5×.' },
   { key: 'demo', label: 'Demo', color: 'var(--demo)', icon: 'ability_warrior_warcry', spell: CFG.SPELLS.demo,
@@ -183,7 +190,7 @@ const COMPONENTS = [
 
 const AUTH_URL = 'https://www.warcraftlogs.com/oauth/authorize';
 const TOKEN_URL = 'https://www.warcraftlogs.com/oauth/token';
-const FIELDS = ['clientId', 'host', 'tanks', 'sunder', 'demo', 'disarmEnc', 'disarmTarget', 'topN', 'report'];
+const FIELDS = ['clientId', 'host', 'fightSet', 'tanks', 'sunder', 'demo', 'disarmEnc', 'disarmTarget', 'topN', 'report'];
 const $ = id => document.getElementById(id);
 const store = {
   get(k) { try { return localStorage.getItem('ws_' + k); } catch (e) { return null; } },
@@ -293,28 +300,47 @@ async function gql(query, variables) {
 }
 const fetchReport = code => gql(`query($code: String!) { reportData { report(code: $code) {
   title
-  fights(killType: Kills) { id encounterID name startTime endTime }
+  fights(killType: All) { id encounterID name startTime endTime kill }
   masterData { actors(type: "Player") { id name subType } } } } }`, { code });
 
-async function fetchDamage(code, f) {
-  const r = await gql(`query($code: String!, $fid: [Int]!, $s: Float!, $e: Float!) { reportData { report(code: $code) {
-    table(dataType: DamageDone, fightIDs: $fid, startTime: $s, endTime: $e) } } }`,
-    { code, fid: [f.id], s: f.startTime, e: f.endTime });
-  const t = r.table && (r.table.data || r.table);
-  return (t && t.entries) || [];
+// Damage tables for many fights in one request each (GraphQL aliases), 20 fights per request
+async function fetchDamageAll(code, fights, onProgress) {
+  const out = {};
+  for (let i = 0; i < fights.length; i += 20) {
+    const chunk = fights.slice(i, i + 20);
+    const parts = chunk.map(f =>
+      `f${f.id}: table(dataType: DamageDone, fightIDs: [${f.id}], startTime: ${f.startTime}, endTime: ${f.endTime})`).join('\n');
+    const r = await gql(`query($code: String!) { reportData { report(code: $code) { ${parts} } } }`, { code });
+    chunk.forEach(f => {
+      const t = r['f' + f.id] && (r['f' + f.id].data || r['f' + f.id]);
+      out[f.id] = (t && t.entries) || [];
+    });
+    if (onProgress) onProgress(Math.min(i + 20, fights.length), fights.length);
+  }
+  return out;
 }
-async function fetchEvents(code, f, abilityID) {
-  const out = []; let start = f.startTime;
+// One paginated debuff-event stream across every fight, then split back out per fight
+async function fetchEventsAll(code, fights, abilityID) {
+  const ids = fights.map(f => f.id);
+  const s0 = Math.min(...fights.map(f => f.startTime)), e0 = Math.max(...fights.map(f => f.endTime));
+  const all = []; let start = s0;
   while (start != null) {
     const r = await gql(`query($code: String!, $fid: [Int]!, $s: Float!, $e: Float!, $ab: Float) {
       reportData { report(code: $code) {
         events(fightIDs: $fid, startTime: $s, endTime: $e, abilityID: $ab, dataType: Debuffs,
                hostilityType: Enemies, limit: 10000) { data nextPageTimestamp } } } }`,
-      { code, fid: [f.id], s: start, e: f.endTime, ab: abilityID });
-    out.push(...(r.events.data || []));
+      { code, fid: ids, s: start, e: e0, ab: abilityID });
+    all.push(...(r.events.data || []));
     start = r.events.nextPageTimestamp;
   }
-  return out;
+  const byFight = {};
+  fights.forEach(f => { byFight[f.id] = []; });
+  all.forEach(ev => {
+    const f = ev.fight != null ? fights.find(x => x.id === ev.fight)
+      : fights.find(x => ev.timestamp >= x.startTime && ev.timestamp <= x.endTime);
+    if (f) byFight[f.id].push(ev);
+  });
+  return byFight;
 }
 
 /* ───────── scoring ───────── */
@@ -449,7 +475,7 @@ function render(title, fights, ranked, topN) {
     <td><b style="color:${tierColor(p.score)}">${p.score.toFixed(1)}</b></td>
     ${COMPONENTS.map(c => `<td>${f(p.components[c.key])}</td>`).join('')}</tr>`).join('');
 
-  $('results').innerHTML = `<h2>${esc(title)}</h2><p class="sub">${fights} boss kill${fights === 1 ? '' : 's'} analyzed</p>${cards}
+  $('results').innerHTML = `<h2>${esc(title)}</h2><p class="sub">${fights.bosses} boss fight${fights.bosses === 1 ? '' : 's'} + ${fights.trash} trash pull${fights.trash === 1 ? '' : 's'} analyzed</p>${cards}
     <h2>All warriors</h2><div class="panel scroll"><table>
     <tr><th>#</th><th>Name</th><th>Score</th>${head}</tr>${rows}</table></div>`;
   refreshWowhead();
@@ -469,20 +495,33 @@ async function run() {
     const rep = await fetchReport(code);
     const warriors = {};
     rep.masterData.actors.filter(a => a.subType === 'Warrior').forEach(a => { warriors[a.id] = a.name; });
-    const fights = [];
-    for (let i = 0; i < rep.fights.length; i++) {
-      const f = rep.fights[i];
-      setStatus(`Analyzing ${f.name} (${i + 1}/${rep.fights.length})…`);
-      const [damage, sunderEvents, demoEvents, disarmEvents] = await Promise.all([
-        fetchDamage(code, f), fetchEvents(code, f, cfg.SPELLS.sunder), fetchEvents(code, f, cfg.SPELLS.demo),
-        cfg.DISARM_ENCOUNTERS.includes(f.encounterID) ? fetchEvents(code, f, cfg.SPELLS.disarm) : Promise.resolve(null),
-      ]);
-      fights.push({ fight: f, damage, sunderEvents, demoEvents, disarmEvents });
-    }
-    if (!fights.length) return setStatus('No boss kills found in this report.', true);
+    const set = $('fightSet').value;
+    const isTrash = f => !f.encounterID;
+    const picked = rep.fights.filter(f => {
+      if (f.endTime <= f.startTime) return false;
+      if (set === 'trash') return isTrash(f);
+      if (set === 'kills') return !isTrash(f) && f.kill;
+      if (set === 'all') return true;
+      return isTrash(f) || f.kill; // kills + trash
+    });
+    if (!picked.length) return setStatus('No matching fights found in this report.', true);
+    const bosses = picked.filter(f => !isTrash(f)).length, trash = picked.length - bosses;
+
+    const dmg = await fetchDamageAll(code, picked, (n, t) => setStatus(`Loading damage… ${n}/${t} pulls`));
+    setStatus('Loading Sunder Armor & Demo Shout…');
+    const disarmFights = picked.filter(f => cfg.DISARM_ENCOUNTERS.includes(f.encounterID || 0));
+    const [sun, demo, dis] = await Promise.all([
+      fetchEventsAll(code, picked, cfg.SPELLS.sunder),
+      fetchEventsAll(code, picked, cfg.SPELLS.demo),
+      disarmFights.length ? fetchEventsAll(code, disarmFights, cfg.SPELLS.disarm) : Promise.resolve({}),
+    ]);
+    const fights = picked.map(f => ({
+      fight: f, damage: dmg[f.id] || [], sunderEvents: sun[f.id] || [], demoEvents: demo[f.id] || [],
+      disarmEvents: dis[f.id] || null,
+    }));
     const ranked = scoreReport(fights, warriors, cfg);
     if (!ranked.length) return setStatus('No DPS warriors found.', true);
-    render(rep.title, fights.length, ranked, Number($('topN').value) || 6);
+    render(rep.title, { bosses, trash }, ranked, Number($('topN').value) || 6);
     setStatus('');
   } catch (e) {
     setStatus(e.message, true);
@@ -497,7 +536,7 @@ if (new URLSearchParams(location.search).has('demo')) {
   const mk = (name, s, d, su, de, w) => ({ name, score: s,
     components: { dps: d, sunder: su, demo: de, disarm: null },
     raw: { dps: d * 11, usefulSunders: Math.round((su || 0) / 6), wastedSunders: w, demoUptime: de !== null ? de * .009 : null, disarms: null } });
-  render('Sample raid (demo data)', 9, [
+  render('Sample raid (demo data)', { bosses: 9, trash: 42 }, [
     mk('Ironjaw', 96.4, 98, 92, null, 0), mk('Grimtusk', 92.1, 100, 74, null, 0), mk('Valebreaker', 89.4, 85, 96, 98, 0),
     mk('Stonefist', 80.6, 90, 55, null, 0), mk('Ashcleaver', 70.3, 82, 30, null, 0), mk('Rustblade', 54.9, 64, 12, null, 0),
   ], 6);
