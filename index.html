@@ -95,6 +95,34 @@
   th { color: var(--muted); font-weight: 500; }
   th .ico { margin: 0 auto; display: block; }
   .scroll { overflow-x: auto; }
+  /* compact, screenshot-friendly scorecard */
+  .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 20px 0 8px; }
+  .toolbar .hint { margin: 0; }
+  button.small { padding: 6px 12px; font-size: 13px; }
+  .shot { background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .shot-head { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; }
+  .shot-head img { width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--warrior); }
+  .shot-title { font: 700 17px/1.2 Cinzel, serif; color: var(--warrior); }
+  .shot-sub { font-size: 11.5px; color: var(--muted); }
+  table.ct { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+  .ct th { color: var(--muted); font: 500 10px Inter, sans-serif; padding: 4px 2px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .ct th.l, .ct td.nm { text-align: left; }
+  .ct th a.spell, .ct th .tip { display: block; width: 20px; margin: 0 auto 2px; }
+  .ct th .ico { width: 20px; height: 20px; display: block; }
+  .ct td { padding: 5px 2px; border-bottom: 1px solid rgba(58,48,39,.55); text-align: center; vertical-align: middle; white-space: nowrap; }
+  .ct tr:last-child td { border-bottom: 0; }
+  .ct .rk { width: 26px; } .ct .sc { width: 48px; } .ct .cc { width: 40px; }
+  .ct tr.r td.rk { box-shadow: inset 3px 0 0 var(--tier); font-weight: 600; color: var(--muted); }
+  .ct td.nm { overflow: hidden; text-overflow: ellipsis; }
+  .nm b { font-weight: 600; color: var(--warrior); }
+  .nm small { display: block; font-size: 10.5px; line-height: 1.3; color: var(--muted); white-space: normal; }
+  .ct td.sc { font: 700 17px Cinzel, serif; color: var(--tier); }
+  .cv { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .mini { height: 3px; background: #0b0907; border-radius: 2px; margin: 3px 5px 0; overflow: hidden; }
+  .mini > i { display: block; height: 100%; }
+  .shot-foot { font-size: 10.5px; color: var(--muted); margin-top: 8px; text-align: center; }
+  details.more { margin-top: 14px; }
+  details.more > summary { margin-bottom: 10px; }
   h2 { font-family: Cinzel, serif; color: var(--warrior); font-size: 20px; margin: 24px 0 10px; }
 </style>
 </head>
@@ -125,24 +153,20 @@
   <div class="panel">
     <label for="report">Report URL or code</label>
     <div class="row">
-      <input id="report" placeholder="https://classic.warcraftlogs.com/reports/AbCd1234…">
+      <input id="report" placeholder="https://vanilla.warcraftlogs.com/reports/AbCd1234…">
       <button id="runBtn" style="flex:0 0 auto">Analyze</button>
     </div>
     <div id="status" class="status"></div>
 
     <details style="margin-top:12px">
       <summary>Settings & roles</summary>
-      <div class="row">
-        <div><label for="clientId">WCL client ID</label><input id="clientId" placeholder="from warcraftlogs.com/api/clients">
-          <div class="hint">Create a <b>public (PKCE)</b> client with this page's URL as the redirect.</div></div>
-        <div><label for="host">Log site</label>
-          <select id="host">
-            <option value="https://classic.warcraftlogs.com">classic.warcraftlogs.com</option>
-            <option value="https://fresh.warcraftlogs.com">fresh.warcraftlogs.com</option>
-            <option value="https://sod.warcraftlogs.com">sod.warcraftlogs.com</option>
-            <option value="https://vanilla.warcraftlogs.com">vanilla.warcraftlogs.com</option>
-          </select></div>
-      </div>
+      <label for="host">Log site</label>
+      <select id="host">
+        <option value="https://vanilla.warcraftlogs.com" selected>vanilla.warcraftlogs.com</option>
+        <option value="https://classic.warcraftlogs.com">classic.warcraftlogs.com</option>
+        <option value="https://fresh.warcraftlogs.com">fresh.warcraftlogs.com</option>
+        <option value="https://sod.warcraftlogs.com">sod.warcraftlogs.com</option>
+      </select>
       <label for="fightSet">Fights to analyze</label>
       <select id="fightSet">
         <option value="killsTrash">Boss kills + trash</option>
@@ -154,8 +178,7 @@
       <label for="sunder">On sunder duty (blank = every DPS warrior)</label><input id="sunder" placeholder="Name, Name">
       <label for="demo">On Demo Shout</label><input id="demo" placeholder="Name">
       <div class="row">
-        <div><label for="disarmEnc">Disarm-scored encounter IDs</label><input id="disarmEnc" placeholder="0 = trash, e.g. 0, 610"></div>
-        <div><label for="disarmTarget">Disarms for full marks</label><input id="disarmTarget" type="number" value="3" min="1"></div>
+        <div><label for="disarmTarget">Disarms per pull for full marks</label><input id="disarmTarget" type="number" value="1" min="1"></div>
         <div><label for="topN">Show top</label><input id="topN" type="number" value="6" min="1"></div>
       </div>
       <div class="hint">Saved in this browser only.</div>
@@ -185,12 +208,13 @@ const COMPONENTS = [
   { key: 'demo', label: 'Demo', color: 'var(--demo)', icon: 'ability_warrior_warcry', spell: CFG.SPELLS.demo,
     tip: 'Demoralizing Shout uptime on the boss. 90%+ uptime = 100. Only scored for the warrior assigned to it.' },
   { key: 'disarm', label: 'Disarm', color: 'var(--disarm)', icon: 'ability_warrior_disarm', spell: CFG.SPELLS.disarm,
-    tip: 'Successful disarms on encounters you marked as disarmable. Not scored anywhere else.' },
+    tip: 'Successful disarms on every pull, boss and trash, for every DPS warrior. Landing the set number of disarms per pull = 100.' },
 ];
 
+const CLIENT_ID = '01a14d65-87c3-71d2-a38a-6bac3945ef17'; // public PKCE client, safe to publish
 const AUTH_URL = 'https://www.warcraftlogs.com/oauth/authorize';
 const TOKEN_URL = 'https://www.warcraftlogs.com/oauth/token';
-const FIELDS = ['clientId', 'host', 'fightSet', 'tanks', 'sunder', 'demo', 'disarmEnc', 'disarmTarget', 'topN', 'report'];
+const FIELDS = ['host', 'fightSet', 'tanks', 'sunder', 'demo', 'disarmTarget', 'topN', 'report'];
 const $ = id => document.getElementById(id);
 const store = {
   get(k) { try { return localStorage.getItem('ws_' + k); } catch (e) { return null; } },
@@ -232,6 +256,7 @@ $('legend').innerHTML = COMPONENTS.map(c => `
   </div>`).join('');
 
 /* ───────── settings ───────── */
+if (!store.get('v3')) { store.del('host'); store.del('clientId'); store.set('v3', '1'); } // default to vanilla once
 FIELDS.forEach(f => {
   const v = store.get(f); if (v !== null) $(f).value = v;
   $(f).addEventListener('change', () => store.set(f, $(f).value));
@@ -241,65 +266,93 @@ FIELDS.forEach(f => {
 function b64url(buf) {
   return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-async function login() {
-  const clientId = $('clientId').value.trim();
-  if (!clientId) { openSettings(); return setStatus('Add your WCL client ID in Settings first.', true); }
+async function login(resumeRun) {
   const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
   const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
   const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
   sessionStorage.setItem('ws_verifier', verifier);
   sessionStorage.setItem('ws_state', state);
+  if (resumeRun) sessionStorage.setItem('ws_resume', '1');
   location.href = AUTH_URL + '?' + new URLSearchParams({
-    client_id: clientId, response_type: 'code', redirect_uri: redirectUri(),
+    client_id: CLIENT_ID, response_type: 'code', redirect_uri: redirectUri(),
     code_challenge: challenge, code_challenge_method: 'S256', state,
   });
 }
-async function finishLogin() {
-  const p = new URLSearchParams(location.search);
-  if (!p.get('code')) return;
-  history.replaceState(null, '', redirectUri());
-  if (p.get('state') !== sessionStorage.getItem('ws_state')) return setStatus('Sign-in failed (state mismatch). Try again.', true);
+function saveTokens(body) {
+  store.set('token', body.access_token);
+  // Warcraft Logs tokens are long-lived; keep whatever lifetime it gives (default 1 year)
+  store.set('tokenExp', String(Date.now() + (body.expires_in || 31536000) * 1000 - 60000));
+  if (body.refresh_token) store.set('refresh', body.refresh_token);
+}
+async function tokenRequest(params) {
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code', client_id: $('clientId').value.trim(),
-      code: p.get('code'), redirect_uri: redirectUri(),
-      code_verifier: sessionStorage.getItem('ws_verifier') || '',
-    }),
+    body: new URLSearchParams(Object.assign({ client_id: CLIENT_ID }, params)),
   });
-  const body = await res.json().catch(() => ({}));
-  if (!body.access_token) return setStatus('Sign-in failed: ' + (body.error_description || body.error || res.status), true);
-  store.set('token', body.access_token);
-  store.set('tokenExp', String(Date.now() + (body.expires_in || 3600) * 1000));
+  return res.json().catch(() => ({ error: String(res.status) }));
 }
+async function finishLogin() {
+  const p = new URLSearchParams(location.search);
+  if (p.get('error')) { history.replaceState(null, '', redirectUri()); return setStatus('Sign-in cancelled.', true); }
+  if (!p.get('code')) return false;
+  history.replaceState(null, '', redirectUri());
+  if (p.get('state') !== sessionStorage.getItem('ws_state')) { setStatus('Sign-in failed (state mismatch). Try again.', true); return false; }
+  const body = await tokenRequest({
+    grant_type: 'authorization_code', code: p.get('code'), redirect_uri: redirectUri(),
+    code_verifier: sessionStorage.getItem('ws_verifier') || '',
+  });
+  if (!body.access_token) { setStatus('Sign-in failed: ' + (body.error_description || body.error), true); return false; }
+  saveTokens(body);
+  return true;
+}
+function signOut() { ['token', 'tokenExp', 'refresh'].forEach(k => store.del(k)); }
 function token() {
   const t = store.get('token'), exp = Number(store.get('tokenExp') || 0);
   return t && Date.now() < exp ? t : null;
 }
+// Valid token, silently renewed with the refresh token when possible
+async function ensureToken() {
+  if (token()) return token();
+  const rt = store.get('refresh');
+  if (rt) {
+    const body = await tokenRequest({ grant_type: 'refresh_token', refresh_token: rt });
+    if (body.access_token) { saveTokens(body); refreshAuthUi(); return token(); }
+  }
+  signOut(); refreshAuthUi();
+  return null;
+}
 function refreshAuthUi() {
-  const ok = !!token();
-  $('authText').textContent = ok ? '✅ Signed in to Warcraft Logs.' : 'Not signed in to Warcraft Logs.';
+  const ok = !!token() || !!store.get('refresh');
+  $('authText').textContent = ok ? '✅ Signed in to Warcraft Logs — you\'ll stay signed in on this device.'
+                                 : 'Sign in once with Warcraft Logs and this device stays signed in.';
   $('loginBtn').hidden = ok; $('logoutBtn').hidden = !ok;
 }
-$('loginBtn').onclick = login;
-$('logoutBtn').onclick = () => { store.del('token'); store.del('tokenExp'); refreshAuthUi(); };
+$('loginBtn').onclick = () => login(false);
+$('logoutBtn').onclick = () => { signOut(); refreshAuthUi(); };
 function openSettings() { document.querySelector('details').open = true; }
 
 /* ───────── API ───────── */
-async function gql(query, variables) {
+async function gql(query, variables, retried) {
+  const t = await ensureToken();
+  if (!t) throw new Error('Signed out of Warcraft Logs — tap Analyze again to sign back in.');
   const res = await fetch($('host').value + '/api/v2/user', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token() },
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
     body: JSON.stringify({ query, variables }),
   });
-  if (res.status === 401) { store.del('token'); refreshAuthUi(); throw new Error('Session expired — sign in again.'); }
+  if (res.status === 401) {
+    store.del('token'); store.set('tokenExp', '0');
+    if (!retried && store.get('refresh')) return gql(query, variables, true);
+    signOut(); refreshAuthUi();
+    throw new Error('Signed out of Warcraft Logs — tap Analyze again to sign back in.');
+  }
   const body = await res.json();
   if (body.errors) throw new Error(body.errors.map(e => e.message).join('; '));
   return body.data.reportData.report;
 }
 const fetchReport = code => gql(`query($code: String!) { reportData { report(code: $code) {
-  title
+  title startTime
   fights(killType: All) { id encounterID name startTime endTime kill }
   masterData { actors(type: "Player") { id name subType } } } } }`, { code });
 
@@ -457,7 +510,36 @@ function compRow(c, value, detail) {
     <span class="num" style="color:${tierColor(value)}">${Math.round(value)}</span>
     <span class="detail">${esc(detail)}</span></div>`;
 }
-function render(title, fights, ranked, topN) {
+function shortDetail(p) {
+  const r = p.raw, bits = [`${Math.round(r.dps).toLocaleString()} dps`, `${r.usefulSunders} sun`];
+  if (r.demoUptime !== null) bits.push(`${Math.round(r.demoUptime * 100)}% demo`);
+  if (r.disarms !== null) bits.push(`${r.disarms} dis`);
+  return bits.map(b => b.replace(/ /g, '\u00a0')).join(' · ');
+}
+function compactTable(meta, list) {
+  const medals = ['🥇', '🥈', '🥉'];
+  const cell = (c, v) => v === null
+    ? `<td class="cc"><span class="na">—</span></td>`
+    : `<td class="cc"><span class="cv" style="color:${tierColor(v)}">${Math.round(v)}</span><div class="mini"><i style="width:${v}%;background:${c.color}"></i></div></td>`;
+  const short = { dps: 'DPS', sunder: 'Sun', demo: 'Demo', disarm: 'Dis' };
+  const head = COMPONENTS.map(c => `<th class="cc">${spellIcon(c, 'sm')}${short[c.key]}</th>`).join('');
+  const rows = list.map((p, i) => `<tr class="r" style="--tier:${tierColor(p.score)}">
+      <td class="rk">${medals[i] || i + 1}</td>
+      <td class="nm"><b>${esc(p.name)}</b><small>${shortDetail(p)}</small></td>
+      <td class="sc">${p.score.toFixed(1)}</td>${COMPONENTS.map(c => cell(c, p.components[c.key])).join('')}</tr>`).join('');
+  const date = meta.startTime ? new Date(meta.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  return `<div class="shot" id="shot">
+    <div class="shot-head">${iconImg('classicon_warrior')}<div>
+      <div class="shot-title">${esc(meta.title)}</div>
+      <div class="shot-sub">Warrior Scorecard${date ? ' · ' + date : ''} · ${meta.bosses} boss + ${meta.trash} trash</div></div></div>
+    <table class="ct"><tr><th class="rk">#</th><th class="l">Warrior</th><th class="sc">Score</th>${head}</tr>${rows}</table>
+    <div class="shot-foot">Score = 60% DPS · 25% effective Sunders · 10% Demo uptime · 5% Disarms</div></div>`;
+}
+let lastRender = null;
+function render(meta, ranked, topN) {
+  lastRender = { meta, ranked, topN };
+  const showAll = $('results').dataset.all === '1';
+  const list = showAll ? ranked : ranked.slice(0, topN);
   const medals = ['🥇', '🥈', '🥉'];
   const cards = ranked.slice(0, topN).map((p, i) => {
     const tier = tierColor(p.score);
@@ -468,26 +550,26 @@ function render(title, fights, ranked, topN) {
         <span class="score tip bare" tabindex="0" data-tip="Weighted total of the scores below.">${p.score.toFixed(1)}</span>
       </div>${rows}</div>`;
   }).join('');
-
-  const f = v => v === null ? '<span class="na">—</span>' : `<span style="color:${tierColor(v)}">${Math.round(v)}</span>`;
-  const head = COMPONENTS.map(c => `<th>${spellIcon(c, 'sm')}</th>`).join('');
-  const rows = ranked.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td>
-    <td><b style="color:${tierColor(p.score)}">${p.score.toFixed(1)}</b></td>
-    ${COMPONENTS.map(c => `<td>${f(p.components[c.key])}</td>`).join('')}</tr>`).join('');
-
-  $('results').innerHTML = `<h2>${esc(title)}</h2><p class="sub">${fights.bosses} boss fight${fights.bosses === 1 ? '' : 's'} + ${fights.trash} trash pull${fights.trash === 1 ? '' : 's'} analyzed</p>${cards}
-    <h2>All warriors</h2><div class="panel scroll"><table>
-    <tr><th>#</th><th>Name</th><th>Score</th>${head}</tr>${rows}</table></div>`;
+  const canToggle = ranked.length > topN;
+  $('results').innerHTML = `<div class="toolbar"><span class="hint">Screenshot-ready ↓</span>
+      ${canToggle ? `<button class="ghost small" id="allBtn">${showAll ? 'Top ' + topN + ' only' : 'Show all ' + ranked.length}</button>` : ''}</div>
+    ${compactTable(meta, list)}
+    <details class="more"><summary>Full breakdown & tooltips</summary>${cards}</details>`;
+  if (canToggle) $('allBtn').onclick = () => {
+    $('results').dataset.all = showAll ? '' : '1';
+    render(lastRender.meta, lastRender.ranked, lastRender.topN);
+  };
   refreshWowhead();
 }
 
 async function run() {
-  if (!token()) return setStatus('Sign in to Warcraft Logs first.', true);
   const code = reportCode($('report').value);
   if (!code) return setStatus('Paste a report URL or code.', true);
+  store.set('report', $('report').value);
+  if (!(await ensureToken())) { setStatus('Signing in to Warcraft Logs…'); return login(true); }
   const cfg = Object.assign({}, CFG, {
     TANKS: names($('tanks').value), SUNDER_ASSIGNED: names($('sunder').value), DEMO_ASSIGNED: names($('demo').value),
-    DISARM_ENCOUNTERS: names($('disarmEnc').value).map(Number), DISARM_TARGET: Number($('disarmTarget').value) || 3,
+    DISARM_TARGET: Number($('disarmTarget').value) || 1,
   });
   $('runBtn').disabled = true; $('results').innerHTML = '';
   try {
@@ -508,20 +590,19 @@ async function run() {
     const bosses = picked.filter(f => !isTrash(f)).length, trash = picked.length - bosses;
 
     const dmg = await fetchDamageAll(code, picked, (n, t) => setStatus(`Loading damage… ${n}/${t} pulls`));
-    setStatus('Loading Sunder Armor & Demo Shout…');
-    const disarmFights = picked.filter(f => cfg.DISARM_ENCOUNTERS.includes(f.encounterID || 0));
+    setStatus('Loading Sunder Armor, Demo Shout & Disarm…');
     const [sun, demo, dis] = await Promise.all([
       fetchEventsAll(code, picked, cfg.SPELLS.sunder),
       fetchEventsAll(code, picked, cfg.SPELLS.demo),
-      disarmFights.length ? fetchEventsAll(code, disarmFights, cfg.SPELLS.disarm) : Promise.resolve({}),
+      fetchEventsAll(code, picked, cfg.SPELLS.disarm),
     ]);
     const fights = picked.map(f => ({
       fight: f, damage: dmg[f.id] || [], sunderEvents: sun[f.id] || [], demoEvents: demo[f.id] || [],
-      disarmEvents: dis[f.id] || null,
+      disarmEvents: dis[f.id] || [],
     }));
     const ranked = scoreReport(fights, warriors, cfg);
     if (!ranked.length) return setStatus('No DPS warriors found.', true);
-    render(rep.title, { bosses, trash }, ranked, Number($('topN').value) || 6);
+    render({ title: rep.title, startTime: rep.startTime, bosses, trash }, ranked, Number($('topN').value) || 6);
     setStatus('');
   } catch (e) {
     setStatus(e.message, true);
@@ -533,17 +614,17 @@ $('runBtn').onclick = run;
 
 // Preview with sample data: add ?demo to the page URL
 if (new URLSearchParams(location.search).has('demo')) {
-  const mk = (name, s, d, su, de, w) => ({ name, score: s,
-    components: { dps: d, sunder: su, demo: de, disarm: null },
-    raw: { dps: d * 11, usefulSunders: Math.round((su || 0) / 6), wastedSunders: w, demoUptime: de !== null ? de * .009 : null, disarms: null } });
-  render('Sample raid (demo data)', { bosses: 9, trash: 42 }, [
-    mk('Ironjaw', 96.4, 98, 92, null, 0), mk('Grimtusk', 92.1, 100, 74, null, 0), mk('Valebreaker', 89.4, 85, 96, 98, 0),
-    mk('Stonefist', 80.6, 90, 55, null, 0), mk('Ashcleaver', 70.3, 82, 30, null, 0), mk('Rustblade', 54.9, 64, 12, null, 0),
+  const mk = (name, s, d, su, de, w, dz) => ({ name, score: s,
+    components: { dps: d, sunder: su, demo: de, disarm: dz },
+    raw: { dps: d * 11, usefulSunders: Math.round((su || 0) / 6), wastedSunders: w, demoUptime: de !== null ? de * .009 : null, disarms: Math.round(dz / 10) } });
+  render({ title: 'Sample raid (demo data)', startTime: Date.now(), bosses: 9, trash: 42 }, [
+    mk('Ironjaw', 95.9, 98, 92, null, 0, 90), mk('Grimtusk', 91.7, 100, 74, null, 0, 80), mk('Valebreaker', 89.8, 85, 96, 98, 0, 100), mk('Stonefist', 78.6, 90, 55, null, 0, 60), mk('Ashcleaver', 65.2, 82, 30, null, 0, 40), mk('Rustblade', 47.1, 64, 12, null, 0, 20),
   ], 6);
 }
 
-finishLogin().catch(e => setStatus(e.message, true)).finally(refreshAuthUi);
-if (!store.get('clientId')) openSettings();
+finishLogin()
+  .then(ok => { refreshAuthUi(); if (ok && sessionStorage.getItem('ws_resume')) { sessionStorage.removeItem('ws_resume'); run(); } })
+  .catch(e => { setStatus(e.message, true); refreshAuthUi(); });
 </script>
 </body>
 </html>
