@@ -41,7 +41,6 @@
   .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .status { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 1.5em; }
   .status.err { color: var(--bad); }
-  .auth { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 
   /* icons */
   .ico { width: 28px; height: 28px; border-radius: 5px; border: 1px solid #000; box-shadow: 0 0 0 1px var(--line); vertical-align: middle; flex: none; }
@@ -123,6 +122,33 @@
   .shot-foot { font-size: 10.5px; color: var(--muted); margin-top: 8px; text-align: center; }
   details.more { margin-top: 14px; }
   details.more > summary { margin-bottom: 10px; }
+  /* Gargul gold split */
+  .gk h2 { margin: 0 0 4px; }
+  .gk .lead { color: var(--muted); font-size: 13px; margin: 0 0 6px; }
+  .gk-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0 10px; }
+  .gk-slots label { margin: 6px 0 3px; text-transform: none; letter-spacing: 0; font-size: 12.5px; color: var(--text); }
+  .gk-slots label b { color: var(--gold); font-weight: 600; margin-left: 4px; }
+  .gk-slots select { padding: 7px; }
+  .gk-wrap { overflow-x: auto; margin: 12px -4px 0; }
+  table.gk-t { width: 100%; min-width: 330px; border-collapse: collapse; font-size: 13px; }
+  .gk-t th { font: 500 10.5px Inter, sans-serif; color: var(--muted); text-align: center; padding: 4px 3px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .gk-t th.l { text-align: left; }
+  .gk-t td { padding: 5px 3px; border-bottom: 1px solid rgba(58,48,39,.55); text-align: center; vertical-align: middle; }
+  .gk-t td.pn { text-align: left; width: 100%; }
+  .gk-t .pg { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+  .gk-t .pg > b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .gk-t .pg .gold { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--gold); white-space: nowrap; }
+  .gk-t td.pn small { display: block; font-size: 10.5px; color: var(--muted); line-height: 1.3; }
+  .gk-t td.pn small.bon { color: #d8c49a; }
+  .gk-t select { padding: 4px 2px; font-size: 12px; width: 64px; }
+  .gk-t input[type=number] { padding: 4px; font-size: 12px; width: 52px; }
+  .gk-t input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--warrior); }
+  .gk-t tr.off td:not(:first-child) { opacity: .35; }
+  .gk-sum { margin: 12px 0 10px; font-size: 13px; line-height: 1.6; }
+  .gk-sum b { color: var(--gold); }
+  .gk-sum .warn { color: var(--bad); }
+  .gk textarea { width: 100%; margin-top: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+                 border-radius: 6px; padding: 8px; font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; }
   h2 { font-family: Cinzel, serif; color: var(--warrior); font-size: 20px; margin: 24px 0 10px; }
 </style>
 </head>
@@ -139,14 +165,6 @@
     <div class="tiers">
       <span style="--c:var(--t-legend)">100</span><span style="--c:var(--t-orange)">95+</span><span style="--c:var(--t-purple)">75+</span>
       <span style="--c:var(--t-blue)">50+</span><span style="--c:var(--t-green)">25+</span><span style="--c:var(--t-gray)">&lt;25</span>
-    </div>
-  </div>
-
-  <div class="panel auth">
-    <div id="authText">Not signed in to Warcraft Logs.</div>
-    <div class="row" style="flex:0 0 auto">
-      <button id="loginBtn">Sign in with Warcraft Logs</button>
-      <button id="logoutBtn" class="ghost" hidden>Sign out</button>
     </div>
   </div>
 
@@ -186,6 +204,7 @@
   </div>
 
   <div id="results"></div>
+  <div id="gdkp"></div>
 </main>
 
 <script>
@@ -211,9 +230,8 @@ const COMPONENTS = [
     tip: 'Successful disarms on every pull, boss and trash, for every DPS warrior. Landing the set number of disarms per pull = 100.' },
 ];
 
-const CLIENT_ID = '01a14d65-87c3-71d2-a38a-6bac3945ef17'; // public PKCE client, safe to publish
-const AUTH_URL = 'https://www.warcraftlogs.com/oauth/authorize';
-const TOKEN_URL = 'https://www.warcraftlogs.com/oauth/token';
+// Your Cloudflare Worker address, e.g. 'https://wcl-relay.yourname.workers.dev'
+const RELAY_URL = 'https://withered-pine-036b.edtruong64.workers.dev';
 const FIELDS = ['host', 'fightSet', 'tanks', 'sunder', 'demo', 'disarmTarget', 'topN', 'report'];
 const $ = id => document.getElementById(id);
 const store = {
@@ -221,7 +239,6 @@ const store = {
   set(k, v) { try { localStorage.setItem('ws_' + k, v); } catch (e) {} },
   del(k) { try { localStorage.removeItem('ws_' + k); } catch (e) {} },
 };
-const redirectUri = () => location.origin + location.pathname;
 const names = s => s.split(',').map(x => x.trim()).filter(Boolean);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -262,93 +279,25 @@ FIELDS.forEach(f => {
   $(f).addEventListener('change', () => store.set(f, $(f).value));
 });
 
-/* ───────── auth (PKCE, no secret) ───────── */
-function b64url(buf) {
-  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-async function login(resumeRun) {
-  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
-  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
-  const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
-  sessionStorage.setItem('ws_verifier', verifier);
-  sessionStorage.setItem('ws_state', state);
-  if (resumeRun) sessionStorage.setItem('ws_resume', '1');
-  location.href = AUTH_URL + '?' + new URLSearchParams({
-    client_id: CLIENT_ID, response_type: 'code', redirect_uri: redirectUri(),
-    code_challenge: challenge, code_challenge_method: 'S256', state,
-  });
-}
-function saveTokens(body) {
-  store.set('token', body.access_token);
-  // Warcraft Logs tokens are long-lived; keep whatever lifetime it gives (default 1 year)
-  store.set('tokenExp', String(Date.now() + (body.expires_in || 31536000) * 1000 - 60000));
-  if (body.refresh_token) store.set('refresh', body.refresh_token);
-}
-async function tokenRequest(params) {
-  const res = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(Object.assign({ client_id: CLIENT_ID }, params)),
-  });
-  return res.json().catch(() => ({ error: String(res.status) }));
-}
-async function finishLogin() {
-  const p = new URLSearchParams(location.search);
-  if (p.get('error')) { history.replaceState(null, '', redirectUri()); return setStatus('Sign-in cancelled.', true); }
-  if (!p.get('code')) return false;
-  history.replaceState(null, '', redirectUri());
-  if (p.get('state') !== sessionStorage.getItem('ws_state')) { setStatus('Sign-in failed (state mismatch). Try again.', true); return false; }
-  const body = await tokenRequest({
-    grant_type: 'authorization_code', code: p.get('code'), redirect_uri: redirectUri(),
-    code_verifier: sessionStorage.getItem('ws_verifier') || '',
-  });
-  if (!body.access_token) { setStatus('Sign-in failed: ' + (body.error_description || body.error), true); return false; }
-  saveTokens(body);
-  return true;
-}
-function signOut() { ['token', 'tokenExp', 'refresh'].forEach(k => store.del(k)); }
-function token() {
-  const t = store.get('token'), exp = Number(store.get('tokenExp') || 0);
-  return t && Date.now() < exp ? t : null;
-}
-// Valid token, silently renewed with the refresh token when possible
-async function ensureToken() {
-  if (token()) return token();
-  const rt = store.get('refresh');
-  if (rt) {
-    const body = await tokenRequest({ grant_type: 'refresh_token', refresh_token: rt });
-    if (body.access_token) { saveTokens(body); refreshAuthUi(); return token(); }
-  }
-  signOut(); refreshAuthUi();
-  return null;
-}
-function refreshAuthUi() {
-  const ok = !!token() || !!store.get('refresh');
-  $('authText').textContent = ok ? '✅ Signed in to Warcraft Logs — you\'ll stay signed in on this device.'
-                                 : 'Sign in once with Warcraft Logs and this device stays signed in.';
-  $('loginBtn').hidden = ok; $('logoutBtn').hidden = !ok;
-}
-$('loginBtn').onclick = () => login(false);
-$('logoutBtn').onclick = () => { signOut(); refreshAuthUi(); };
 function openSettings() { document.querySelector('details').open = true; }
+['token', 'tokenExp', 'refresh'].forEach(k => store.del(k)); // old sign-in leftovers
 
 /* ───────── API ───────── */
-async function gql(query, variables, retried) {
-  const t = await ensureToken();
-  if (!t) throw new Error('Signed out of Warcraft Logs — tap Analyze again to sign back in.');
-  const res = await fetch($('host').value + '/api/v2/user', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
-    body: JSON.stringify({ query, variables }),
-  });
-  if (res.status === 401) {
-    store.del('token'); store.set('tokenExp', '0');
-    if (!retried && store.get('refresh')) return gql(query, variables, true);
-    signOut(); refreshAuthUi();
-    throw new Error('Signed out of Warcraft Logs — tap Analyze again to sign back in.');
+async function gql(query, variables) {
+  if (!RELAY_URL) throw new Error('Relay not set up yet — put your Cloudflare Worker address in RELAY_URL.');
+  let res;
+  try {
+    res = await fetch(RELAY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables, host: $('host').value.replace(/^https:\/\/|\.warcraftlogs\.com$/g, '') }),
+    });
+  } catch (e) {
+    throw new Error('Could not reach the relay. Check RELAY_URL and that ALLOWED_ORIGIN matches this site.');
   }
-  const body = await res.json();
+  const body = await res.json().catch(() => ({ errors: [{ message: 'Relay returned ' + res.status }] }));
   if (body.errors) throw new Error(body.errors.map(e => e.message).join('; '));
+  if (!body.data || !body.data.reportData || !body.data.reportData.report) throw new Error('Report not found — is it private?');
   return body.data.reportData.report;
 }
 const fetchReport = code => gql(`query($code: String!) { reportData { report(code: $code) {
@@ -562,16 +511,222 @@ function render(meta, ranked, topN) {
   refreshWowhead();
 }
 
+/* ───────── Gargul gold split ───────── */
+// Bonus structure (percent of the total pot). Edit here if the rules change.
+const BONUS = {
+  admin: 10,                         // RL / Host / Auctioneer / ML — shared by everyone ticked
+  slots: [
+    { key: 'MT', label: '💀 MT', pct: 2 },
+    { key: 'X', label: '❌ X Tank', pct: 1.5 },
+    { key: 'Square', label: '🔳 Square Tank', pct: 1.25 },
+    { key: 'Moon', label: '🌙 Moon Tank', pct: 0.75 },
+    { key: 'Triangle', label: '🔺 Triangle Tank', pct: 0.20 },
+    { key: 'Diamond', label: '🔶 Diamond Tank', pct: 0.20 },
+    { key: 'Puller', label: '🎯 Puller & Marker', pct: 1 },
+  ],
+  dps: [1.25, 1.25, 1, 0.5, 0.5, 0.5], // Top 1–6 DPS
+  healer: 0.25, healerMany: 0.20, healerManyAt: 12,
+  rear: 0.10,                        // 4 Horsemen rear tanks, each
+};
+const CLASS_COLOR = { Warrior: '#C69B6D', Rogue: '#FFF468', Mage: '#3FC7EB', Warlock: '#8788EE', Hunter: '#AAD372',
+  Priest: '#FFFFFF', Druid: '#FF7C0A', Paladin: '#F48CBA', Shaman: '#0070DD' };
+let GK = null;
+const gkSaved = () => { try { return JSON.parse(store.get('gk') || '{}'); } catch (e) { return {}; } };
+const gkSave = patch => store.set('gk', JSON.stringify(Object.assign(gkSaved(), patch)));
+const fmtG = n => Math.round(n).toLocaleString() + 'g';
+const fmtP = n => (Math.round(n * 100) / 100) + '%';
+
+async function fetchRoles(code, fights) {
+  try {
+    const bosses = fights.filter(f => f.encounterID);
+    const use = bosses.length ? bosses : fights;
+    const r = await gql(`query($code: String!, $ids: [Int]) { reportData { report(code: $code) {
+      playerDetails(fightIDs: $ids) } } }`, { code, ids: use.map(f => f.id) });
+    let pd = r.playerDetails || {};
+    pd = (pd.data && pd.data.playerDetails) || pd.playerDetails || pd;
+    const roles = {};
+    (pd.tanks || []).forEach(p => { roles[p.name] = 'Tank'; });
+    (pd.dps || []).forEach(p => { roles[p.name] = 'DPS'; });      // a DPS who off-tanked once stays DPS
+    (pd.healers || []).forEach(p => { roles[p.name] = 'Healer'; });
+    return roles;
+  } catch (e) { return {}; }
+}
+
+function buildGdkp(data) {
+  const saved = gkSaved();
+  const rows = {};
+  data.roster.forEach(p => {
+    rows[p.name] = { name: p.name, cls: p.cls, dps: p.dps || 0, include: true,
+      role: (saved.roles || {})[p.name] || p.role || 'DPS',
+      admin: (saved.admin || []).includes(p.name), rear: (saved.rear || []).includes(p.name), extra: 0 };
+  });
+  const rank = { Tank: 0, Healer: 1, DPS: 2 };
+  const order = Object.keys(rows).sort((a, b) => rank[rows[a].role] - rank[rows[b].role] || rows[b].dps - rows[a].dps || a.localeCompare(b));
+  const slots = {};
+  BONUS.slots.forEach(s => { const n = (saved.slots || {})[s.key]; slots[s.key] = n && rows[n] ? n : ''; });
+  GK = { code: data.code, rows, order, slots, warriorOrder: data.warriorOrder || [], dpsBy: saved.dpsBy || 'raw' };
+
+  const tankFirst = order.slice().sort((a, b) => (rows[a].role === 'Tank' ? 0 : 1) - (rows[b].role === 'Tank' ? 0 : 1));
+  const slotHtml = BONUS.slots.map(s => `<div><label for="gk_${s.key}">${s.label}<b>${fmtP(s.pct)}</b></label>
+    <select id="gk_${s.key}" data-slot="${s.key}"><option value="">—</option>${tankFirst.map(n =>
+      `<option${slots[s.key] === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`).join('');
+  const rowHtml = order.map(n => { const r = rows[n]; return `<tr data-n="${esc(n)}">
+    <td><input type="checkbox" class="inc" checked aria-label="Include ${esc(n)}"></td>
+    <td class="pn"><div class="pg"><b style="color:${CLASS_COLOR[r.cls] || 'var(--text)'}">${esc(n)}</b><span class="gold">—</span></div>
+      <small>${esc(r.cls || '')}${r.dps ? ' · ' + Math.round(r.dps).toLocaleString() + ' dps' : ''}</small><small class="bon"></small></td>
+    <td><select class="role">${['DPS', 'Healer', 'Tank'].map(o => `<option${r.role === o ? ' selected' : ''}>${o}</option>`).join('')}</select></td>
+    <td><input type="checkbox" class="adm"${r.admin ? ' checked' : ''} aria-label="Admin"></td>
+    <td><input type="checkbox" class="rear"${r.rear ? ' checked' : ''} aria-label="4HM rear tank"></td>
+    <td><input type="number" class="ext" step="0.05" placeholder="0" aria-label="Extra %"></td></tr>`; }).join('');
+
+  let pot = ''; try { pot = store.get('gkpot_' + data.code) || ''; } catch (e) {}
+  $('gdkp').innerHTML = `<div class="panel gk">
+    <h2>💰 Gargul gold split</h2>
+    <p class="lead">Fill in the pot and roles, then paste the result into Gargul. Bonuses come off the top; the rest is split evenly between everyone ticked.</p>
+    <div class="row">
+      <div><label for="gkPot">Total pot (gold)</label><input id="gkPot" type="number" inputmode="numeric" min="0" placeholder="e.g. 250000" value="${esc(pot)}"></div>
+      <div><label for="gkDpsBy">Top 6 DPS bonus ranked by</label><select id="gkDpsBy">
+        <option value="raw"${GK.dpsBy === 'raw' ? ' selected' : ''}>Raw DPS — all DPS players</option>
+        <option value="score"${GK.dpsBy === 'score' ? ' selected' : ''}>Warrior Scorecard — warriors only</option></select></div>
+    </div>
+    <div class="gk-slots">${slotHtml}</div>
+    <div class="gk-wrap"><table class="gk-t">
+      <tr><th>In</th><th class="l">Player · gold</th><th>Role</th>
+        <th class="tip bare" tabindex="0" data-tip="RL / Host / Auctioneer / ML — ${BONUS.admin}% shared between everyone ticked">Admin</th>
+        <th class="tip bare" tabindex="0" data-tip="4 Horsemen rear tank — ${BONUS.rear}% each">4HM</th>
+        <th class="tip bare" tabindex="0" data-tip="Extra % of the pot for this player (use a minus for a cut). For RL/host calls.">+%</th></tr>${rowHtml}</table></div>
+    <div id="gkSum" class="gk-sum"></div>
+    <div class="row">
+      <button id="gkCopy">Copy for Gargul</button>
+      <button id="gkCsv" class="ghost">Download spreadsheet</button>
+    </div>
+    <textarea id="gkOut" rows="6" readonly aria-label="Gargul import text"></textarea>
+    <div class="hint">In game: <b>/gdkp</b> → pick the session → <b>Cuts</b> → <b>Import</b>, paste, Import. Gargul replaces every cut with this list, so anyone left out gets 0. Plain names work while everyone is still in your raid group.</div>
+  </div>`;
+
+  const panel = document.querySelector('.gk');
+  const onEdit = e => {
+    const t = e.target;
+    if (t.id === 'gkPot') { try { store.set('gkpot_' + GK.code, t.value); } catch (x) {} }
+    else if (t.id === 'gkDpsBy') { GK.dpsBy = t.value; gkSave({ dpsBy: t.value }); }
+    else if (t.dataset.slot) {
+      GK.slots[t.dataset.slot] = t.value;
+      gkSave({ slots: Object.assign({}, gkSaved().slots, { [t.dataset.slot]: t.value }) });
+    } else {
+      const tr = t.closest('tr[data-n]'); if (!tr) return;
+      const r = GK.rows[tr.dataset.n];
+      if (t.classList.contains('inc')) { r.include = t.checked; tr.classList.toggle('off', !t.checked); }
+      if (t.classList.contains('role')) { r.role = t.value; gkSave({ roles: Object.assign({}, gkSaved().roles, { [r.name]: t.value }) }); }
+      if (t.classList.contains('ext')) r.extra = Number(t.value) || 0;
+      if (t.classList.contains('adm') || t.classList.contains('rear')) {
+        const key = t.classList.contains('adm') ? 'admin' : 'rear';
+        r[key] = t.checked;
+        const list = new Set(gkSaved()[key] || []);
+        t.checked ? list.add(r.name) : list.delete(r.name);
+        gkSave({ [key]: [...list] });
+      }
+    }
+    gkRecalc();
+  };
+  panel.addEventListener('input', onEdit);
+  panel.addEventListener('change', onEdit);
+  $('gkCopy').onclick = gkCopy;
+  $('gkCsv').onclick = gkDownload;
+  gkRecalc();
+}
+
+function gkCompute() {
+  const pot = Math.max(0, Number($('gkPot').value) || 0);
+  const rows = GK.order.map(n => GK.rows[n]).filter(r => r.include);
+  const B = {}; rows.forEach(r => { B[r.name] = []; });
+  const add = (n, label, pct) => { if (B[n]) B[n].push({ label, pct }); };
+
+  const admins = rows.filter(r => r.admin);
+  admins.forEach(r => add(r.name, 'Admin', BONUS.admin / admins.length));
+  BONUS.slots.forEach(s => { if (GK.slots[s.key]) add(GK.slots[s.key], s.label.replace(/^\S+\s/, ''), s.pct); });
+  const healers = rows.filter(r => r.role === 'Healer');
+  const hp = healers.length >= BONUS.healerManyAt ? BONUS.healerMany : BONUS.healer;
+  healers.forEach(r => add(r.name, 'Healer', hp));
+  rows.filter(r => r.rear).forEach(r => add(r.name, '4HM rear', BONUS.rear));
+
+  const slotted = new Set(Object.values(GK.slots).filter(Boolean));
+  const eligible = r => r && r.include && r.role === 'DPS' && !slotted.has(r.name);
+  const pool = GK.dpsBy === 'score'
+    ? GK.warriorOrder.map(n => GK.rows[n]).filter(eligible)
+    : rows.filter(eligible).sort((a, b) => b.dps - a.dps);
+  const topDps = pool.slice(0, BONUS.dps.length);
+  topDps.forEach((r, i) => add(r.name, `Top ${i + 1} DPS`, BONUS.dps[i]));
+  rows.forEach(r => { if (r.extra) add(r.name, (r.extra > 0 ? '+' : '') + r.extra + '% adj', r.extra); });
+
+  const sumPct = list => list.reduce((t, b) => t + b.pct, 0);
+  const totalPct = rows.reduce((t, r) => t + sumPct(B[r.name]), 0);
+  const base = rows.length ? pot * (1 - totalPct / 100) / rows.length : 0;
+  const out = rows.map(r => {
+    const pct = sumPct(B[r.name]);
+    return { name: r.name, cls: r.cls, role: r.role, pct, bonuses: B[r.name], base,
+             bonusGold: pot * pct / 100, gold: Math.max(0, Math.floor(base + pot * pct / 100)) };
+  });
+  const paid = out.reduce((t, o) => t + o.gold, 0);
+  return { pot, out, totalPct, base, healers: healers.length, hp, topDps, leftover: pot - paid };
+}
+
+function gkRecalc() {
+  const c = gkCompute(), by = {};
+  c.out.forEach(o => { by[o.name] = o; });
+  document.querySelectorAll('.gk-t tr[data-n]').forEach(tr => {
+    const o = by[tr.dataset.n], g = tr.querySelector('.gold'), bon = tr.querySelector('.bon');
+    if (!o) { g.textContent = '—'; bon.textContent = 'not included'; return; }
+    g.textContent = c.pot ? fmtG(o.gold) : '—';
+    bon.textContent = o.bonuses.map(b => `${b.label} ${fmtP(b.pct)}`).join(' · ');
+  });
+  const warn = [];
+  if (!c.pot) warn.push('Enter the total pot to see gold amounts.');
+  if (c.totalPct >= 100) warn.push('Bonuses add up to 100% or more of the pot.');
+  BONUS.slots.forEach(s => { const n = GK.slots[s.key]; if (n && GK.rows[n] && !GK.rows[n].include) warn.push(`${n} (${s.label.replace(/^\S+\s/, '')}) isn't included.`); });
+  $('gkSum').innerHTML = `<b>${c.out.length}</b> raiders · bonuses <b>${fmtP(c.totalPct)}</b>${c.pot ? ` (${fmtG(c.pot * c.totalPct / 100)})` : ''}
+    · everyone's base share <b>${c.pot ? fmtG(c.base) : '—'}</b><br>
+    ${c.healers} healers at ${fmtP(c.hp)} each · Top DPS: ${c.topDps.map((r, i) => `${i + 1}. ${esc(r.name)}`).join(', ') || '—'}
+    ${c.pot && c.leftover > 0 ? `<br>Rounding leaves ${fmtG(c.leftover)} unassigned.` : ''}
+    ${warn.length ? `<br><span class="warn">${warn.map(esc).join(' ')}</span>` : ''}`;
+  $('gkOut').value = c.pot ? 'Player,Gold\n' + c.out.map(o => `${o.name},${o.gold}`).join('\n') : '';
+  return c;
+}
+
+function gkCopy() {
+  const txt = $('gkOut').value;
+  if (!txt) return setStatus('Enter the total pot first.', true);
+  const done = () => { $('gkCopy').textContent = 'Copied ✓'; setTimeout(() => { $('gkCopy').textContent = 'Copy for Gargul'; }, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => { $('gkOut').select(); document.execCommand('copy'); done(); });
+  else { $('gkOut').select(); document.execCommand('copy'); done(); }
+}
+
+function gkDownload() {
+  const c = gkCompute();
+  if (!c.pot) return setStatus('Enter the total pot first.', true);
+  const clean = v => String(v).replace(/[,\n"]/g, ' ');
+  const lines = ['Player,Gold,Class,Role,Base,Bonus %,Bonus Gold,Bonuses'].concat(c.out.map(o => [
+    o.name, o.gold, o.cls || '', o.role, Math.floor(o.base), Math.round(o.pct * 100) / 100, Math.floor(o.bonusGold),
+    o.bonuses.map(b => `${b.label} ${fmtP(b.pct)}`).join(' + '),
+  ].map(clean).join(',')));
+  const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `gargul-cuts-${GK.code}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
 async function run() {
   const code = reportCode($('report').value);
   if (!code) return setStatus('Paste a report URL or code.', true);
   store.set('report', $('report').value);
-  if (!(await ensureToken())) { setStatus('Signing in to Warcraft Logs…'); return login(true); }
+  const site = $('report').value.match(/https?:\/\/(vanilla|classic|fresh|sod)\.warcraftlogs\.com/);
+  if (site) { $('host').value = 'https://' + site[1] + '.warcraftlogs.com'; store.set('host', $('host').value); }
   const cfg = Object.assign({}, CFG, {
     TANKS: names($('tanks').value), SUNDER_ASSIGNED: names($('sunder').value), DEMO_ASSIGNED: names($('demo').value),
     DISARM_TARGET: Number($('disarmTarget').value) || 1,
   });
-  $('runBtn').disabled = true; $('results').innerHTML = '';
+  $('runBtn').disabled = true; $('results').innerHTML = ''; $('gdkp').innerHTML = '';
   try {
     setStatus('Loading report…');
     const rep = await fetchReport(code);
@@ -600,9 +755,19 @@ async function run() {
       fight: f, damage: dmg[f.id] || [], sunderEvents: sun[f.id] || [], demoEvents: demo[f.id] || [],
       disarmEvents: dis[f.id] || [],
     }));
+    setStatus('Loading raid roles…');
+    const roles = await fetchRoles(code, picked);
     const ranked = scoreReport(fights, warriors, cfg);
-    if (!ranked.length) return setStatus('No DPS warriors found.', true);
-    render({ title: rep.title, startTime: rep.startTime, bosses, trash }, ranked, Number($('topN').value) || 6);
+    if (ranked.length) render({ title: rep.title, startTime: rep.startTime, bosses, trash }, ranked, Number($('topN').value) || 6);
+    else $('results').innerHTML = '<p class="sub">No DPS warriors found in these fights.</p>';
+
+    // Raw DPS for every player across the analyzed fights, for the gold split
+    const totalS = picked.reduce((t, f) => t + (f.endTime - f.startTime) / 1000, 0);
+    const dmgBy = {};
+    picked.forEach(f => (dmg[f.id] || []).forEach(e => { dmgBy[e.name] = (dmgBy[e.name] || 0) + (e.total || 0); }));
+    const roster = rep.masterData.actors.map(a => ({ name: a.name, cls: a.subType,
+      role: roles[a.name] || (a.subType === 'Priest' ? 'Healer' : 'DPS'), dps: totalS ? (dmgBy[a.name] || 0) / totalS : 0 }));
+    buildGdkp({ code, roster, warriorOrder: ranked.map(r => r.name) });
     setStatus('');
   } catch (e) {
     setStatus(e.message, true);
@@ -620,11 +785,21 @@ if (new URLSearchParams(location.search).has('demo')) {
   render({ title: 'Sample raid (demo data)', startTime: Date.now(), bosses: 9, trash: 42 }, [
     mk('Ironjaw', 95.9, 98, 92, null, 0, 90), mk('Grimtusk', 91.7, 100, 74, null, 0, 80), mk('Valebreaker', 89.8, 85, 96, 98, 0, 100), mk('Stonefist', 78.6, 90, 55, null, 0, 60), mk('Ashcleaver', 65.2, 82, 30, null, 0, 40), mk('Rustblade', 47.1, 64, 12, null, 0, 20),
   ], 6);
+  const demoRoster = [];
+  const add = (cls, role, list) => list.forEach((n, i) => demoRoster.push({ name: n, cls, role, dps: role === 'DPS' ? 1150 - demoRoster.length * 9 - i * 3 : 0 }));
+  add('Warrior', 'Tank', ['Bulwark', 'Shieldwall', 'Taunton', 'Bastion', 'Aegis', 'Rampart']);
+  add('Warrior', 'DPS', ['Grimtusk', 'Ironjaw', 'Valebreaker', 'Stonefist', 'Ashcleaver', 'Rustblade', 'Gorehowl', 'Skullsplit']);
+  add('Rogue', 'DPS', ['Shivv', 'Nightblade', 'Quickstab', 'Duskfang', 'Venomtip']);
+  add('Mage', 'DPS', ['Frostbyte', 'Pyrolis', 'Arcanyx', 'Blinkz', 'Sheepish']);
+  add('Warlock', 'DPS', ['Felix', 'Doomcaller', 'Shadowbolt']);
+  add('Hunter', 'DPS', ['Tranqshot', 'Petlover']);
+  add('Priest', 'Healer', ['Lightwell', 'Renewal', 'Holynova', 'Fortitude', 'Penance']);
+  add('Paladin', 'Healer', ['Hammerfall', 'Blessington', 'Holyshock']);
+  add('Druid', 'Healer', ['Rejuvia', 'Barkskin', 'Treeform']);
+  buildGdkp({ code: 'demo', roster: demoRoster, warriorOrder: ['Ironjaw', 'Grimtusk', 'Valebreaker', 'Stonefist', 'Ashcleaver', 'Rustblade'] });
 }
 
-finishLogin()
-  .then(ok => { refreshAuthUi(); if (ok && sessionStorage.getItem('ws_resume')) { sessionStorage.removeItem('ws_resume'); run(); } })
-  .catch(e => { setStatus(e.message, true); refreshAuthUi(); });
+if (!RELAY_URL) setStatus('Relay not set up yet — see setup steps.', true);
 </script>
 </body>
 </html>
